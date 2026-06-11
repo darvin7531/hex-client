@@ -1,0 +1,30 @@
+# Dependency directories
+node_modules/
+
+# Production/Build outputs
+dist/
+dist-electron/
+dist-renderer/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Temporary / testing files
+tmp-*/
+tmp-*
+*.jar
+*.json.bak
+neoforge-installer.jar.log
+
+# Local env files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# IDE files
+.idea/
+.vscode/
+*.sw?

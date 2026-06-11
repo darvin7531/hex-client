@@ -1,0 +1,56 @@
+{
+  "name": "hexloader-client",
+  "private": true,
+  "version": "0.2.3",
+  "description": "HexLoader private Minecraft launcher",
+  "author": "darvin7531 developer",
+  "main": "dist-electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "vite --host 0.0.0.0 --port 3000",
+    "dev:electron": "wait-on tcp:3000 && tsc -p tsconfig.electron.json && electron .",
+    "build": "tsc --noEmit && vite build && tsc -p tsconfig.electron.json",
+    "start": "electron .",
+    "dist": "npm run build && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.0",
+    "adm-zip": "^0.5.17",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.40.0",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.40.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4.3.0"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^5.0.4",
+    "concurrently": "^9.2.1",
+    "electron": "^37.2.6",
+    "electron-builder": "^26.8.1",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.3",
+    "wait-on": "^8.0.5"
+  },
+  "build": {
+    "appId": "ru.darivn7531.hexloader",
+    "productName": "HexLoader",
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
