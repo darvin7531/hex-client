@@ -120,4 +120,5 @@ export interface LauncherSettings {
   jvmArgs: string;
   optionalMods: Record<string, boolean>;
   customApiUrl?: string;
+  nickname?: string;
 }
