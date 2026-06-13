@@ -6,6 +6,15 @@ import { fetchManifest } from '../lib/mockApi';
 import { formatBytes, cn } from '../lib/utils';
 import { ActionButton } from './ActionButton';
 
+function generateRandomNickname(): string {
+  const adjs = ["Hex", "Cyber", "Pixel", "Neon", "Void", "Quantum", "Retro", "Shadow", "Alpha", "Omega", "Glitch", "Cosmic", "Rogue", "Ghost", "Aero", "Delta"];
+  const nouns = ["Pilot", "Runner", "Hunter", "Knight", "Ranger", "Slayer", "Reaper", "Phantom", "Nexus", "Titan", "Wraith", "Vortex", "Sentry", "Seeker", "Warden", "Forge"];
+  const adj = adjs[Math.floor(Math.random() * adjs.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const num = Math.floor(Math.random() * 900) + 100;
+  return `${adj}${noun}_${num}`;
+}
+
 export function PackView({ pack, onClose }: { pack: PackSummary, onClose: () => void }) {
   const [manifest, setManifest] = useState<ReleaseManifest | null>(null);
   const [activeTab, setActiveTab] = useState<'changelog' | 'mods'>('changelog');
@@ -43,7 +52,7 @@ export function PackView({ pack, onClose }: { pack: PackSummary, onClose: () => 
        
        // Initialize optional mods from storage or defaults
        const stored = localStorage.getItem('launcher_settings');
-       const settings = stored ? JSON.parse(stored) : { optionalMods: {}, nickname: 'HexPilot' };
+       const settings = stored ? JSON.parse(stored) : { optionalMods: {} };
        
        const initialMods: Record<string, boolean> = { ...settings.optionalMods };
        // Set default true for optional mods not explicitly disabled
@@ -53,13 +62,29 @@ export function PackView({ pack, onClose }: { pack: PackSummary, onClose: () => 
          }
        });
        setOptionalMods(initialMods);
-       setNickname(settings.nickname || 'HexPilot');
+
+       let activeNickname = settings.nickname;
+       if (!activeNickname || activeNickname === 'HexPilot') {
+         activeNickname = generateRandomNickname();
+         settings.nickname = activeNickname;
+         localStorage.setItem('launcher_settings', JSON.stringify(settings));
+         if (window.hexloaderDesktop) {
+           window.hexloaderDesktop.updateSettings({ nickname: activeNickname });
+         }
+       }
+       setNickname(activeNickname);
     });
 
     if (window.hexloaderDesktop) {
       window.hexloaderDesktop.getSettings().then(desktopSettings => {
-        if (desktopSettings.nickname) {
+        if (desktopSettings.nickname && desktopSettings.nickname !== 'HexPilot') {
           setNickname(desktopSettings.nickname);
+        } else {
+          const stored = localStorage.getItem('launcher_settings');
+          const settings = stored ? JSON.parse(stored) : {};
+          const activeNickname = settings.nickname || generateRandomNickname();
+          setNickname(activeNickname);
+          window.hexloaderDesktop!.updateSettings({ nickname: activeNickname });
         }
       });
     }
@@ -306,7 +331,7 @@ export function PackView({ pack, onClose }: { pack: PackSummary, onClose: () => 
             <div className="text-sm font-semibold text-zinc-200 uppercase">{pack.releaseChannel} / {pack.loaderType}</div>
           </div>
           <div className="h-8 w-px bg-white/5"></div>
-          <div className="space-y-0.5">
+          <div className="space-y-1.5">
             <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
               <User className="w-3.5 h-3.5 text-indigo-400" />
               Игровой никнейм
@@ -315,8 +340,8 @@ export function PackView({ pack, onClose }: { pack: PackSummary, onClose: () => 
               type="text"
               value={nickname}
               onChange={(e) => handleNicknameChange(e.target.value)}
-              className="bg-transparent text-sm font-semibold text-zinc-200 focus:outline-none border-b border-transparent hover:border-white/20 focus:border-indigo-500 transition-colors w-32 pb-0.5"
-              placeholder="HexPilot"
+              className="bg-black/50 border border-white/10 rounded-lg px-3 py-1 text-sm font-semibold text-zinc-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all w-40 font-mono shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)]"
+              placeholder="Nickname"
             />
           </div>
         </div>
