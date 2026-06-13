@@ -118,6 +118,16 @@ declare global {
         instanceDir: string;
         deleted: boolean;
       }>;
+      verifyPackFiles: (payload: { packId: string; packVersion?: string }) => Promise<{
+        status: 'ok' | 'not_installed' | 'update_available' | 'repair_required';
+        missingFiles: number;
+        corruptedFiles: number;
+        newFiles: number;
+        totalFiles: number;
+        serverVersion: string;
+        localVersion?: string;
+        corruptedPaths?: string[];
+      }>;
       getLauncherLogs: () => Promise<Array<{
         id: string;
         timestamp: string;

@@ -107,10 +107,22 @@ export const realElectronBridge: ElectronAPI = {
     return 'C:\\Program Files\\Java\\jdk-17';
   },
   checkLocalPackState: async (packId, version) => {
+    // First check if process is running (quick check)
     const diag = await window.hexloaderDesktop!.getLauncherDiagnostics({ packId, packVersion: version });
     if (diag.processRunning) return 'running';
-    if (diag.instanceInstalled) return 'ready_to_launch';
-    return 'not_installed';
+    if (!diag.instanceInstalled) return 'not_installed';
+
+    // Full file verification against backend manifest
+    try {
+      const result = await window.hexloaderDesktop!.verifyPackFiles({ packId, packVersion: version });
+      if (result.status === 'not_installed') return 'not_installed';
+      if (result.status === 'update_available') return 'update_available';
+      if (result.status === 'repair_required') return 'repair_required';
+      return 'ready_to_launch';
+    } catch {
+      // If verify fails (e.g. no network), fall back to basic check
+      return 'ready_to_launch';
+    }
   },
   verifyAndInstallPack: async (manifest, userOptions) => {
     emitGameState({ status: 'installing' });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Play, Download, Settings2, Wrench, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Play, Download, Loader2, Wrench, RefreshCw, AlertTriangle } from 'lucide-react';
 import { GameState, SyncProgress } from '../types';
 import { formatBytes, cn } from '../lib/utils';
 
@@ -21,7 +21,7 @@ export function ActionButton({
     'update_available': { Text: 'UPDATE AVAILABLE', Icon: RefreshCw, glowColor: 'bg-indigo-500', buttonClass: 'bg-indigo-600 text-white border-indigo-500 hover:bg-indigo-500', isLightText: true, enabled: true },
     'repair_required': { Text: 'REPAIR FILES', Icon: Wrench, glowColor: 'bg-amber-500', buttonClass: 'bg-amber-600 text-zinc-950 border-amber-500 hover:bg-amber-500', isLightText: false, enabled: true },
     'ready_to_launch': { Text: 'PLAY NOW', glowColor: 'bg-emerald-500', buttonClass: 'bg-emerald-500 text-zinc-950 border-emerald-400 hover:bg-emerald-400', isLightText: false, enabled: true },
-    'launching': { Text: 'LAUNCHING...', Icon: Settings2, glowColor: 'bg-emerald-500', buttonClass: 'bg-emerald-500 text-zinc-950 border-emerald-400 opacity-80', isLightText: false, enabled: false },
+    'launching': { Text: 'LAUNCHING...', Icon: Loader2, glowColor: 'bg-emerald-500', buttonClass: 'bg-emerald-500 text-zinc-950 border-emerald-400 opacity-80', isLightText: false, enabled: false },
     'running': { Text: 'GAME IS RUNNING', glowColor: 'bg-emerald-500', buttonClass: 'bg-zinc-900 border-emerald-500 text-emerald-400', isLightText: true, enabled: false },
     'launch_failed': { Text: 'RETRY LAUNCH', Icon: AlertTriangle, glowColor: 'bg-amber-500', buttonClass: 'bg-amber-500 text-zinc-950 border-amber-400 hover:bg-amber-400', isLightText: false, enabled: true }
   };

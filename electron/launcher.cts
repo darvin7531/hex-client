@@ -1300,3 +1300,139 @@ export async function deleteLocalPack(packId: string) {
     deleted: true,
   };
 }
+
+export async function verifyPackFiles(packId: string, packVersion?: string) {
+  writeLauncherLog("info", "verify", `Verifying files for ${packId}${packVersion ? `@${packVersion}` : ""}`);
+
+  let release: PackRelease;
+  try {
+    release = await fetchReleaseByVersion(packId, packVersion);
+  } catch {
+    writeLauncherLog("warn", "verify", `Cannot reach backend to verify ${packId}, assuming ok`);
+    return { status: "ok" as const, missingFiles: 0, corruptedFiles: 0, newFiles: 0, totalFiles: 0, serverVersion: "" };
+  }
+
+  const instanceDir = getInstanceDirForRelease(release);
+  const instanceManifestPath = path.join(instanceDir, ".hexloader-release.json");
+
+  // Check if instance exists at all
+  if (!(await exists(instanceDir)) || !(await exists(instanceManifestPath))) {
+    writeLauncherLog("info", "verify", `Pack ${packId} is not installed locally`);
+    return { status: "not_installed" as const, missingFiles: release.files.length, corruptedFiles: 0, newFiles: 0, totalFiles: release.files.length, serverVersion: release.packVersion };
+  }
+
+  // Read the full local manifest (with files array)
+  let localManifest: { packVersion?: string; files?: PackFile[] } = {};
+  try {
+    const raw = await fs.readFile(instanceManifestPath, "utf-8");
+    localManifest = JSON.parse(raw);
+  } catch {
+    // Can't read → treat as not installed
+    return { status: "not_installed" as const, missingFiles: release.files.length, corruptedFiles: 0, newFiles: 0, totalFiles: release.files.length, serverVersion: release.packVersion };
+  }
+
+  const localVersion = String(localManifest.packVersion ?? "");
+
+  // Different version on server → update available
+  if (localVersion && localVersion !== release.packVersion) {
+    writeLauncherLog("info", "verify", `Update available: local ${localVersion} → server ${release.packVersion}`);
+    return { status: "update_available" as const, missingFiles: 0, corruptedFiles: 0, newFiles: 0, totalFiles: release.files.length, serverVersion: release.packVersion, localVersion };
+  }
+
+  // Same version — check if server manifest has files that the local manifest didn't have
+  // (i.e. files were added to the same version on the backend)
+  const localFilePaths = new Set((localManifest.files ?? []).map((f) => f.path));
+  const localFileHashes = new Map((localManifest.files ?? []).map((f) => [f.path, f.sha256 ?? ""]));
+  let newFiles = 0;
+  let manifestChanged = false;
+
+  for (const serverFile of release.files) {
+    if (!localFilePaths.has(serverFile.path)) {
+      // File exists on server but not in local manifest → new file added
+      newFiles += 1;
+      manifestChanged = true;
+    } else {
+      // File was in local manifest — check if hash changed on server side
+      const localHash = localFileHashes.get(serverFile.path) ?? "";
+      if (serverFile.sha256 && localHash && serverFile.sha256.toLowerCase() !== localHash.toLowerCase()) {
+        manifestChanged = true;
+      }
+    }
+  }
+
+  // Verify each file on disk
+  let missingFiles = 0;
+  let corruptedFiles = 0;
+  const corruptedPaths: string[] = [];
+
+  for (const file of release.files) {
+    const targetPath = path.join(instanceDir, file.path);
+
+    if (!(await exists(targetPath))) {
+      missingFiles += 1;
+      continue;
+    }
+
+    if (file.sha256) {
+      try {
+        const localHash = await sha256OfFile(targetPath);
+        if (localHash.toLowerCase() !== file.sha256.toLowerCase()) {
+          corruptedFiles += 1;
+          corruptedPaths.push(file.path);
+        }
+      } catch {
+        corruptedFiles += 1;
+        corruptedPaths.push(file.path);
+      }
+    }
+  }
+
+  if (manifestChanged && missingFiles === 0 && corruptedFiles === 0 && newFiles > 0) {
+    // Server added new files to the same version, but nothing on disk is broken
+    writeLauncherLog("info", "verify", `Pack ${packId}: ${newFiles} new files added to version ${release.packVersion} on server`);
+    return {
+      status: "update_available" as const,
+      missingFiles,
+      corruptedFiles,
+      newFiles,
+      totalFiles: release.files.length,
+      serverVersion: release.packVersion,
+      localVersion,
+    };
+  }
+
+  if (missingFiles > 0 || corruptedFiles > 0) {
+    writeLauncherLog(
+      "warn",
+      "verify",
+      `Pack ${packId}: ${missingFiles} missing, ${corruptedFiles} corrupted, ${newFiles} new out of ${release.files.length} files`,
+    );
+    return {
+      status: "repair_required" as const,
+      missingFiles,
+      corruptedFiles,
+      corruptedPaths,
+      newFiles,
+      totalFiles: release.files.length,
+      serverVersion: release.packVersion,
+      localVersion,
+    };
+  }
+
+  if (manifestChanged) {
+    writeLauncherLog("info", "verify", `Pack ${packId}: manifest changed on server for version ${release.packVersion}`);
+    return {
+      status: "update_available" as const,
+      missingFiles: 0,
+      corruptedFiles: 0,
+      newFiles,
+      totalFiles: release.files.length,
+      serverVersion: release.packVersion,
+      localVersion,
+    };
+  }
+
+  writeLauncherLog("info", "verify", `Pack ${packId}@${release.packVersion} — all ${release.files.length} files verified OK`);
+  return { status: "ok" as const, missingFiles: 0, corruptedFiles: 0, newFiles: 0, totalFiles: release.files.length, serverVersion: release.packVersion, localVersion };
+}
+

@@ -43,6 +43,9 @@ contextBridge.exposeInMainWorld("hexloaderDesktop", {
   deleteLocalPack: async (payload: { packId: string }) => {
     return ipcRenderer.invoke("launcher:delete-local-pack", payload);
   },
+  verifyPackFiles: async (payload: { packId: string; packVersion?: string }) => {
+    return ipcRenderer.invoke("launcher:verify-files", payload);
+  },
   getLauncherLogs: async () => {
     return ipcRenderer.invoke("launcher:logs:get");
   },

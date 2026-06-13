@@ -16,6 +16,7 @@ const {
   syncPackVersion,
   syncPack,
   updateApiBase,
+  verifyPackFiles,
 }: {
   fetchClientBootstrap: () => Promise<unknown>;
   deleteLocalPack: (packId: string) => Promise<unknown>;
@@ -37,6 +38,7 @@ const {
   syncPackVersion: (packId: string, packVersion?: string, repair?: boolean) => Promise<unknown>;
   syncPack: (packId: string, repair?: boolean) => Promise<unknown>;
   updateApiBase: (newUrl: string) => void;
+  verifyPackFiles: (packId: string, packVersion?: string) => Promise<unknown>;
 } = require("./launcher.cjs");
 
 const { DEFAULT_API_BASE } = require("./sharedConfig.cjs");
@@ -474,6 +476,10 @@ app.whenReady().then(async () => {
 
   ipcMain.handle("launcher:delete-local-pack", (_event, payload: { packId: string }) => {
     return deleteLocalPack(payload.packId);
+  });
+
+  ipcMain.handle("launcher:verify-files", (_event, payload: { packId: string; packVersion?: string }) => {
+    return verifyPackFiles(payload.packId, payload.packVersion);
   });
 
   ipcMain.handle("filesystem:open-path", async (_event, payload: { path: string }) => {
