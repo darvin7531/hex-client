@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Download, HardDrive, RefreshCw, Wrench, ChevronLeft, LayoutList, Puzzle, CheckCircle2, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Play, Download, HardDrive, RefreshCw, Wrench, ChevronLeft, LayoutList, Puzzle, CheckCircle2, AlertTriangle, AlertCircle, User } from 'lucide-react';
 import { PackSummary, ReleaseManifest, PackState, SyncProgress, GameState } from '../types';
 import { fetchManifest } from '../lib/mockApi';
 import { formatBytes, cn } from '../lib/utils';
@@ -11,9 +11,31 @@ export function PackView({ pack, onClose }: { pack: PackSummary, onClose: () => 
   const [activeTab, setActiveTab] = useState<'changelog' | 'mods'>('changelog');
   const [gameState, setGameState] = useState<GameState>({ status: 'not_installed' });
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
+  const [nickname, setNickname] = useState<string>('HexPilot');
   
   // Local state for optional mods selected by user
   const [optionalMods, setOptionalMods] = useState<Record<string, boolean>>({});
+
+  const handleNicknameChange = async (newNickname: string) => {
+    setNickname(newNickname);
+    
+    // Save to localStorage
+    const stored = localStorage.getItem('launcher_settings');
+    const settings = stored ? JSON.parse(stored) : {};
+    settings.nickname = newNickname;
+    localStorage.setItem('launcher_settings', JSON.stringify(settings));
+
+    // Save to Electron desktop settings
+    if (window.hexloaderDesktop) {
+      try {
+        await window.hexloaderDesktop.updateSettings({
+          nickname: newNickname
+        });
+      } catch (err) {
+        console.error("Failed to update nickname in Electron settings:", err);
+      }
+    }
+  };
 
   useEffect(() => {
     fetchManifest(pack.packId).then(m => {
@@ -21,7 +43,7 @@ export function PackView({ pack, onClose }: { pack: PackSummary, onClose: () => 
        
        // Initialize optional mods from storage or defaults
        const stored = localStorage.getItem('launcher_settings');
-       const settings = stored ? JSON.parse(stored) : { optionalMods: {} };
+       const settings = stored ? JSON.parse(stored) : { optionalMods: {}, nickname: 'HexPilot' };
        
        const initialMods: Record<string, boolean> = { ...settings.optionalMods };
        // Set default true for optional mods not explicitly disabled
@@ -31,7 +53,16 @@ export function PackView({ pack, onClose }: { pack: PackSummary, onClose: () => 
          }
        });
        setOptionalMods(initialMods);
+       setNickname(settings.nickname || 'HexPilot');
     });
+
+    if (window.hexloaderDesktop) {
+      window.hexloaderDesktop.getSettings().then(desktopSettings => {
+        if (desktopSettings.nickname) {
+          setNickname(desktopSettings.nickname);
+        }
+      });
+    }
 
     // Determine initial state
     window.electronAPI.checkLocalPackState(pack.packId, pack.latestVersion).then(state => {
@@ -273,6 +304,20 @@ export function PackView({ pack, onClose }: { pack: PackSummary, onClose: () => 
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Release Channel</div>
             <div className="text-sm font-semibold text-zinc-200 uppercase">{pack.releaseChannel} / {pack.loaderType}</div>
+          </div>
+          <div className="h-8 w-px bg-white/5"></div>
+          <div className="space-y-0.5">
+            <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5 text-indigo-400" />
+              Игровой никнейм
+            </div>
+            <input
+              type="text"
+              value={nickname}
+              onChange={(e) => handleNicknameChange(e.target.value)}
+              className="bg-transparent text-sm font-semibold text-zinc-200 focus:outline-none border-b border-transparent hover:border-white/20 focus:border-indigo-500 transition-colors w-32 pb-0.5"
+              placeholder="HexPilot"
+            />
           </div>
         </div>
 

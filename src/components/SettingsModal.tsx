@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { X, Server, MemoryStick as Memory, Code, FolderOpen, Settings, User } from 'lucide-react';
+import { X, Server, MemoryStick as Memory, Code, FolderOpen, Settings } from 'lucide-react';
 import { LauncherSettings } from '../types';
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
@@ -9,8 +9,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     ramAllocation: 4096,
     customJavaPath: '',
     jvmArgs: '-XX:+UseG1GC -Dsun.rmi.dgc.server.gcInterval=2147483646',
-    optionalMods: {},
-    nickname: 'HexPilot'
+    optionalMods: {}
   });
 
   useEffect(() => {
@@ -92,24 +91,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
         <div className="p-8 overflow-y-auto space-y-8 flex-1">
           
-          {/* Section: Nickname */}
-          <div className="space-y-4">
-            <label className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-              <User className="w-4 h-4 text-indigo-400" />
-              Игровой никнейм
-            </label>
-            <input 
-               type="text" 
-               value={settings.nickname || ''}
-               onChange={(e) => setSettings(s => ({...s, nickname: e.target.value}))}
-               placeholder="Введите ваш никнейм"
-               className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-mono"
-            />
-            <p className="text-xs text-zinc-500">
-              Этот никнейм будет использоваться при авторизации в игре.
-            </p>
-          </div>
-
           {/* Section: RAM */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
