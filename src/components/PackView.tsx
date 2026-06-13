@@ -64,7 +64,7 @@ export function PackView({ pack, onClose }: { pack: PackSummary, onClose: () => 
        setOptionalMods(initialMods);
 
        let activeNickname = settings.nickname;
-       if (!activeNickname || activeNickname === 'HexPilot') {
+       if (activeNickname === undefined) {
          activeNickname = generateRandomNickname();
          settings.nickname = activeNickname;
          localStorage.setItem('launcher_settings', JSON.stringify(settings));
@@ -77,13 +77,23 @@ export function PackView({ pack, onClose }: { pack: PackSummary, onClose: () => 
 
     if (window.hexloaderDesktop) {
       window.hexloaderDesktop.getSettings().then(desktopSettings => {
-        if (desktopSettings.nickname && desktopSettings.nickname !== 'HexPilot') {
+        const stored = localStorage.getItem('launcher_settings');
+        const settings = stored ? JSON.parse(stored) : {};
+        
+        if (settings.nickname !== undefined) {
+          setNickname(settings.nickname);
+          if (desktopSettings.nickname !== settings.nickname) {
+            window.hexloaderDesktop!.updateSettings({ nickname: settings.nickname });
+          }
+        } else if (desktopSettings.nickname && desktopSettings.nickname !== 'HexPilot') {
           setNickname(desktopSettings.nickname);
+          settings.nickname = desktopSettings.nickname;
+          localStorage.setItem('launcher_settings', JSON.stringify(settings));
         } else {
-          const stored = localStorage.getItem('launcher_settings');
-          const settings = stored ? JSON.parse(stored) : {};
-          const activeNickname = settings.nickname || generateRandomNickname();
+          const activeNickname = generateRandomNickname();
           setNickname(activeNickname);
+          settings.nickname = activeNickname;
+          localStorage.setItem('launcher_settings', JSON.stringify(settings));
           window.hexloaderDesktop!.updateSettings({ nickname: activeNickname });
         }
       });
