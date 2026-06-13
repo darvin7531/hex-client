@@ -50,13 +50,37 @@ export function PackView({ pack, onClose }: { pack: PackSummary, onClose: () => 
       }
     });
 
+    // Periodic background verification every 30s
+    const verifyInterval = setInterval(async () => {
+      // Only re-check in stable states, don't interfere with active operations
+      const currentStatus = gameState.status;
+      if (currentStatus === 'installing' || currentStatus === 'updating' || 
+          currentStatus === 'launching' || currentStatus === 'running') {
+        return;
+      }
+      try {
+        const freshState = await window.electronAPI.checkLocalPackState(pack.packId, pack.latestVersion);
+        setGameState(prev => {
+          // Don't override active states with verification results
+          if (prev.status === 'installing' || prev.status === 'updating' || 
+              prev.status === 'launching' || prev.status === 'running') {
+            return prev;
+          }
+          return { status: freshState };
+        });
+      } catch {
+        // Silently ignore verification errors (e.g. network issues)
+      }
+    }, 30_000);
+
     return () => {
       unsubProgress();
       unsubGameState();
+      clearInterval(verifyInterval);
     };
   }, [pack]);
 
-  const handleActionClick = () => {
+  const handleActionClick = async () => {
     if (!manifest) return;
     
     const stored = localStorage.getItem('launcher_settings');
@@ -71,9 +95,37 @@ export function PackView({ pack, onClose }: { pack: PackSummary, onClose: () => 
         window.electronAPI.repairPack(manifest);
         break;
       case 'ready_to_launch':
-      case 'launch_failed':
-        window.electronAPI.launchGame(manifest, userOptions);
+      case 'launch_failed': {
+        // Re-verify files before launching to catch any changes since page load
+        const freshState = await window.electronAPI.checkLocalPackState(pack.packId, pack.latestVersion);
+        if (freshState === 'not_installed' || freshState === 'update_available' || freshState === 'repair_required') {
+          // Files changed — sync first, then auto-launch after sync completes
+          setGameState({ status: freshState });
+          
+          const onStateChange = (e: any, state: GameState) => {
+            if (state.status === 'ready_to_launch') {
+              // Sync finished → auto-launch
+              window.electronAPI.launchGame(manifest, userOptions);
+            }
+          };
+          
+          // Subscribe to state change to auto-launch after sync
+          const unsub = window.electronAPI.onGameStateChanged(onStateChange);
+          
+          if (freshState === 'repair_required') {
+            window.electronAPI.repairPack(manifest);
+          } else {
+            window.electronAPI.verifyAndInstallPack(manifest, userOptions);
+          }
+          
+          // Cleanup listener after 5 minutes (safety)
+          setTimeout(() => unsub(), 5 * 60 * 1000);
+        } else {
+          // All files verified — launch directly
+          window.electronAPI.launchGame(manifest, userOptions);
+        }
         break;
+      }
       default:
         // Do nothing for running/installing
         break;
