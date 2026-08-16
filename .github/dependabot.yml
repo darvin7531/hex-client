@@ -1,0 +1,31 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "Europe/Amsterdam"
+    open-pull-requests-limit: 10
+    groups:
+      electron-toolchain:
+        patterns:
+          - "electron"
+          - "electron-builder"
+      vite-toolchain:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+          - "typescript"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react*"
+      tailwind:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+          - "tailwind-merge"
+    versioning-strategy: increase

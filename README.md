@@ -1,88 +1,200 @@
-# HexLoader Client (Launcher)
+# HexLoader Client
 
-Игровой клиент-лаунчер для HexLoader на базе Electron + React + TypeScript + TailwindCSS. Обеспечивает авторизацию, скачивание обновлений сборок и автоматический запуск игры.
+Windows-лаунчер HexLoader на Electron + React + TypeScript. Клиент работает с HexLoader Go Backend, синхронизирует Minecraft-сборки, проверяет целостность файлов, управляет Java runtime и запускает Minecraft.
 
-## Оглавление
-- [Функции](#функции)
-- [Требования](#требования)
-- [Быстрый старт (Разработка)](#быстрый-старт-разработка)
-- [Конфигурация API сервера](#конфигурация-api-сервера)
-- [Сборка дистрибутива (Production)](#сборка-дистрибутива-production)
-- [Структура проекта](#структура-проекта)
+## Что изменено в hardened v2
 
----
+Критическая логика вынесена из renderer в Electron main process. Renderer больше не имеет произвольного доступа к файловой системе, процессам или сетевой конфигурации. Preload экспортирует только узкий `window.hexloaderDesktop` API.
 
-## Функции
-- **Синхронизация файлов**: Автоматически скачивает, обновляет и удаляет файлы модов на основе манифеста от бэкенда.
-- **Поддержка версий Java**: Автоматически определяет и запрашивает нужную версию Java (указанную в манифесте сборки).
-- **Прямой запуск**: Интеграция с процессом Minecraft, автоматическая передача токенов и запуск.
-- **Настройка API**: Возможность сменить адрес бэкенда прямо в настройках интерфейса.
-- **Интеграция с Discord RPC**: Отображение игрового статуса (при интеграции).
+Основные изменения:
 
----
+- `contextIsolation`, Electron sandbox, отключённый Node integration и webview;
+- блокировка внешней навигации, popup-окон, permission requests и обычных Electron downloads;
+- проверка sender каждого IPC вызова;
+- один экземпляр лаунчера и последовательные операции над одной сборкой;
+- runtime-валидация всех ответов backend;
+- HTTPS обязателен для внешнего backend, HTTP допускается только на loopback в development;
+- pack-файлы скачиваются только с origin backend;
+- SHA-256 проверяется до атомарной замены существующего файла;
+- старый рабочий файл сохраняется при неудачной замене;
+- Windows-safe пути, защита от traversal, reserved names, symlink/junction и case-insensitive collisions;
+- безопасная распаковка Java/native ZIP с лимитами размера, количества entries и compression ratio;
+- удаление устаревших managed-файлов между версиями;
+- поддержка `optional` и `preserveUserChanges`;
+- offline запуск только из уже установленного и повторно проверенного cache;
+- malformed backend response или ошибка подписи **не** превращаются в offline fallback;
+- настоящий progress скачивания вместо декоративного таймера;
+- optional Ed25519 verification manifest;
+- updater требует SHA-256; дополнительно умеет pin Authenticode certificate;
+- updater не выполняет произвольные аргументы от backend;
+- правильный Minecraft offline UUID;
+- Fabric, NeoForge и Forge install/launch;
+- release channels `stable` / `beta` / `test` читаются у каждой конкретной версии из `/versions`; клиент не подменяет канал hardcoded `stable`;
+- выбор и сохранение конкретной версии сборки, включая архивные версии; выбранная версия запрашивается с её собственным release channel;
+- MOTD и server bootstrap из backend;
+- user server override только когда backend разрешил `allowUserOverride`;
+- современный auto-connect через Quick Play для Minecraft 1.20+ и legacy args для старых версий;
+- история сохранённых ников с быстрым переключением;
+- live backend↔launcher contract checker (`npm run check:backend`);
+- Fabric, NeoForge и Forge поддерживаются. Forge устанавливается официальным headless Forge Installer и проверяется до запуска.
+
+Подробная матрица backend ↔ launcher: [docs/LAUNCHER_PARITY.md](docs/LAUNCHER_PARITY.md).
 
 ## Требования
-- **Node.js**: версии 18+ (рекомендуется 20 LTS)
 
----
+- Windows x64;
+- Node.js для разработки/сборки;
+- npm;
+- работающий HexLoader Go Backend.
 
-## Быстрый старт (Разработка)
+Проект закреплён на актуальном стабильном toolchain: Electron 43.2.0, React 19.2.8, Vite 8.1.5, TypeScript 7.0.2 и Tailwind 4.3.3. Подробности в [docs/TESTING.md](docs/TESTING.md).
 
-1. **Установка зависимостей** (из корневой папки клиента):
-   ```bash
-   npm install
-   ```
+## Установка зависимостей
 
-2. **Запуск в режиме разработки**:
-   ```bash
-   npm run dev
-   ```
-   *Команда запустит Vite-сервер на порту 3000, дождется его готовности и откроет окно Electron.*
+Для этой обновлённой версии старый lock-файл намеренно удалён, потому что он фиксировал устаревший dependency tree. Первый раз выполните:
 
----
+```powershell
+npm install
+```
 
-## Конфигурация и Настройки
+После этого npm создаст новый `package-lock.json`. Его нужно сохранить в репозитории; последующие чистые установки снова выполняются через:
 
-Лаунчер поддерживает гибкую настройку как на этапе компиляции (для сборки готового клиента под игроков), так и непосредственно пользователем в интерфейсе.
+```powershell
+npm ci
+```
 
-### 1. Настройка адреса API бэкенда
-Для обмена данными со сборками лаунчеру необходим адрес бэкенда. Его можно настроить в трёх местах:
-*   **Для сборки дистрибутива (глобальный дефолт)**: Задается в единственном файле конфигурации [electron/sharedConfig.cts](file:///c:/Users/darvin7531/Desktop/HexLoader/Client/electron/sharedConfig.cts) в константе `DEFAULT_API_BASE` (по умолчанию `http://127.0.0.1:4000/api`). Это значение используется при сборке `.exe` инсталлятора для игроков.
-*   **Переменная окружения**: При разработке или запуске можно передать переменную окружения `HEXLOADER_API_BASE` (например, `HEXLOADER_API_BASE=https://api.myserver.com/api npm run dev`), она переопределит дефолтное значение.
-*   **В интерфейсе лаунчера (для разработчиков/тестировщиков)**: В шапке лаунчера нажмите на иконку шестерёнки. В поле **«Адрес API Бэкенда»** можно переопределить адрес (изменения запишутся в `localStorage` и во внутренний файл настроек лаунчера `settings.json`).
+Для сборки используйте Node.js 24.18.1+ в пределах ветки 24.x и npm 12.0.1+ в пределах ветки 12.x. Версия Node зафиксирована в `.nvmrc` и `.node-version`, npm — в `packageManager`/`devEngines`.
 
-### 2. Настройка игрового никнейма
-Выбор игрового никнейма вынесен прямо на страницу конкретной сборки (в нижней панели управления):
-*   **Первый запуск**: Если никнейм не был настроен ранее, лаунчер сгенерирует красивый случайный ник (например, `NeonHunter_384` или `VoidRanger_127`) и сохранит его.
-*   **Ручной ввод**: Пользователь может ввести свой никнейм прямо в текстовое поле на нижней панели. Ввод автоматически сохраняется и синхронизируется с главным процессом Electron, после чего никнейм подставляется в аргументы запуска Minecraft (для оффлайн-авторизации).
+## Development
 
-### 3. Системные настройки (RAM, Java, JVM)
-Доступны по клику на иконку шестерёнки в верхнем правом углу лаунчера:
-*   **Выделение оперативной памяти (RAM)**: Ползунок позволяет выбрать объем выделяемой памяти под Minecraft (от 1024 МБ до максимума физической памяти вашей системы).
-*   **Среда выполнения (Java)**: По умолчанию лаунчер сам находит или скачивает нужную версию Java (указанную в манифесте сборки). При необходимости можно вручную указать путь к конкретной JDK/JRE.
-*   **Аргументы JVM**: Список дополнительных аргументов для оптимизации сборки и сборщика мусора (по умолчанию прописаны стандартные флаги G1GC).
+```powershell
+npm run dev
+```
 
----
+Vite слушает только `127.0.0.1:3000`.
 
-## Сборка дистрибутива (Production)
+## Проверка
 
-Для упаковки лаунчера в готовый исполняемый `.exe` файл установки под Windows:
-1. Убедитесь, что в [electron/sharedConfig.cts](file:///c:/Users/darvin7531/Desktop/HexLoader/Client/electron/sharedConfig.cts) указан рабочий внешний адрес вашего бэкенда в константе `DEFAULT_API_BASE`.
-2. Выполните команду сборщика:
-   ```bash
-   npm run dist
-   ```
-3. После завершения процесса готовый установщик будет находиться в папке `dist/` (например, `HexLoader Setup 0.2.3.exe`).
+```powershell
+npm run check
+```
 
----
+Команда выполняет TypeScript/Vite build, компиляцию Electron main/preload и security regression tests.
 
-## Структура проекта
+Дополнительно:
 
-- `electron/` — Код главного процесса Electron (работа с диском, сетью, запуск процессов игры).
-  - `main.cts` — Точка входа главного процесса, обработка настроек, IPC мосты.
-  - `launcher.cts` — Логика скачивания файлов, верификации манифеста, проверки хешей и запуска Minecraft.
-  - `sharedConfig.cts` — Единый источник конфигурации адреса бэкенда по умолчанию.
-- `src/` — Интерфейс лаунчера (React + Tailwind CSS).
-  - `components/` — Визуальные компоненты UI (страница сборки `PackView`, настройки `SettingsModal`, кнопка действия `ActionButton`).
-  - `lib/` — Вспомогательные библиотеки, мок-адаптер для Electron (`mockElectron`).
-- `vite.config.ts` — Настройка сборщика Vite для рендерера и прокси-сервера.
+```powershell
+npm run deps:outdated
+npm run deps:audit
+```
+
+При запущенном backend проверьте именно живой launcher-контракт:
+
+```powershell
+npm run check:backend -- --url http://127.0.0.1:4000/api
+```
+
+Проверка проходит `/launcher/version`, capabilities, packs, channels, versions, release manifests, Java requirements, server bootstrap, artifact policies и launcher updater.
+
+`package.json` использует точные версии прямых зависимостей. `npm run check:toolchain` проверяет, что установлены именно они. Dependabot настроен на еженедельную проверку обновлений.
+
+## Production backend
+
+Откройте `electron/sharedConfig.cts` и задайте backend:
+
+```ts
+export const DEFAULT_API_BASE = "https://launcher.example.com/api";
+```
+
+В production пользовательская смена API выключена по умолчанию. `HEXLOADER_API_BASE` и поле custom API применяются только в development, если `ALLOW_CUSTOM_API_IN_PRODUCTION` явно не включён в build.
+
+### Manifest signing
+
+Для production рекомендуется включить Ed25519 signing на backend.
+
+На backend:
+
+```powershell
+.\hex-backend.exe keygen-signing
+```
+
+Private key хранится только на backend:
+
+```env
+HEXLOADER_MANIFEST_HASH_MODE=sha256
+HEXLOADER_SIGNING_PRIVATE_KEY=<private-key-base64>
+```
+
+Public key закрепляется внутри client build:
+
+```ts
+export const MANIFEST_SIGNING_PUBLIC_KEY_BASE64 = "<public-key-base64>";
+export const REQUIRE_SIGNED_MANIFESTS = true;
+```
+
+После этого unsigned/tampered manifest не запускается даже из локального cache.
+
+### Authenticode updater pin
+
+После настройки code signing для Windows installer можно закрепить SHA-256 fingerprint сертификата:
+
+```ts
+export const INSTALLER_SIGNER_CERT_SHA256 = "<64 hex chars>";
+export const REQUIRE_AUTHENTICODE_INSTALLER = true;
+```
+
+Тогда обновление принимается только если одновременно совпадает SHA-256 файла от backend и Windows считает Authenticode signature валидной и выпущенной закреплённым сертификатом.
+
+## Сборка
+
+Локальный/test installer без production trust-gate:
+
+```powershell
+npm run dist:dev
+```
+
+Production installer:
+
+```powershell
+npm run check
+npm run dist
+```
+
+`npm run dist` намеренно завершится ошибкой, пока не выполнены production требования: поддерживаемый Electron, HTTPS backend, обязательная Ed25519-подпись manifest и pinned Authenticode certificate. Это защита от случайного выпуска compatibility build. NSIS installer создаёт `electron-builder`.
+
+## Структура
+
+```text
+electron/
+  main.cts                  privileged Electron process + IPC + updater
+  preload.cts               narrow renderer bridge
+  launcher.cts              Minecraft/download/storage/runtime logic
+  sharedConfig.cts          build-time trust configuration
+  security/
+    validation.cts          paths/URLs/input validation
+    contracts.cts           backend runtime contracts
+    manifestSignature.cts   SHA-256/Ed25519 verification
+    *.test.cts              security regression tests
+
+src/
+  components/               React UI
+  lib/clientApi.ts          renderer API facade
+  electron.d.ts             exact preload bridge types
+
+docs/
+  ARCHITECTURE.md
+  TESTING.md
+```
+
+## Данные пользователя
+
+Настройки хранятся в Electron `userData/client-settings.json`. Minecraft instances, shared cache, runtimes и launcher logs создаются внутри каталога данных HexLoader. Renderer не получает прямых путей для произвольной записи.
+
+Синхронизация сборки транзакционная: новые файлы сначала скачиваются и проверяются в staging, затем применяются одним commit-проходом. Если commit ломается посередине, изменённые файлы откатываются. В интерфейсе есть живой журнал текущего запуска с фильтрацией по уровню и scope.
+
+## Ограничения
+
+- Manifest signing и Authenticode pin находятся в compatibility mode, пока вы не закрепите реальные production keys/certificate.
+- Не включайте `ALLOW_CUSTOM_API_IN_PRODUCTION`, если не требуется специальный тестовый build.
+
+См. также [SECURITY.md](SECURITY.md).

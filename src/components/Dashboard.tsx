@@ -1,22 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, MonitorPlay, Component, X, HardDrive, Cpu, FileJson, Play } from 'lucide-react';
+import { Settings as SettingsIcon, MonitorPlay, X, AlertTriangle, RefreshCw, Download, Loader2, TerminalSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PackSummary, Notice } from '../types';
-import { fetchNotices, fetchPacks } from '../lib/mockApi';
+import type { LauncherUpdateStatus, PackSummary, Notice } from '../types';
+import { fetchNotices, fetchPacks } from '../lib/clientApi';
 import { SettingsModal } from './SettingsModal';
 import { PackView } from './PackView';
+import { LogsModal } from './LogsModal';
 import { cn } from '../lib/utils';
 
-export function Dashboard() {
+export function Dashboard({ updateStatus }: { updateStatus: LauncherUpdateStatus | null }) {
   const [packs, setPacks] = useState<PackSummary[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [selectedPack, setSelectedPack] = useState<PackSummary | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isLogsOpen, setIsLogsOpen] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [reloadToken, setReloadToken] = useState(0);
+  const [installingUpdate, setInstallingUpdate] = useState(false);
+  const [updateError, setUpdateError] = useState('');
 
   useEffect(() => {
-    fetchPacks().then(setPacks);
-    fetchNotices().then(setNotices);
-  }, []);
+    let alive = true;
+    setLoadError('');
+    Promise.all([fetchPacks(), fetchNotices()])
+      .then(([loadedPacks, loadedNotices]) => {
+        if (!alive) return;
+        setPacks(loadedPacks);
+        setNotices(loadedNotices);
+      })
+      .catch((reason) => {
+        if (alive) setLoadError(reason instanceof Error ? reason.message : String(reason));
+      });
+    return () => { alive = false; };
+  }, [reloadToken]);
 
   return (
     <div className="flex flex-col h-screen w-full bg-zinc-950 text-zinc-100 overflow-hidden font-sans border border-white/10">
@@ -27,12 +43,12 @@ export function Dashboard() {
       >
         <div className="flex items-center gap-3">
           <div className="w-5 h-5 bg-gradient-to-br from-emerald-500 to-indigo-600 rounded-sm rotate-45 flex-shrink-0"></div>
-          <span className="text-[10px] font-bold tracking-widest uppercase opacity-70">HexLoader // Client_v2.4.1</span>
+          <span className="text-[10px] font-bold tracking-widest uppercase opacity-70">HexLoader // Client</span>
         </div>
         <div className="flex items-center gap-4" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <div className="flex items-center gap-2 px-2 py-0.5 rounded border border-white/5 bg-white/5">
             <span className="text-[9px] uppercase tracking-tighter opacity-50">System Status</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+            <div className={cn("w-1.5 h-1.5 rounded-full", loadError ? "bg-amber-500" : "bg-emerald-500 animate-pulse")} />
           </div>
           
           {/* Custom Window Control Buttons for Electron */}
@@ -63,6 +79,31 @@ export function Dashboard() {
           )}
         </div>
       </header>
+
+      {updateStatus?.available && updateStatus.remote && !updateStatus.remote.mandatory && (
+        <div className="px-4 py-2 bg-indigo-500/10 border-b border-indigo-500/20 flex items-center justify-between gap-4 text-xs">
+          <div className="min-w-0">
+            <span className="text-indigo-300 font-semibold">Доступен HexLoader {updateStatus.remote.version}</span>
+            {updateError && <span className="ml-3 text-red-300">{updateError}</span>}
+          </div>
+          <button
+            disabled={installingUpdate}
+            onClick={() => {
+              if (!window.hexloaderDesktop) return;
+              setInstallingUpdate(true);
+              setUpdateError('');
+              void window.hexloaderDesktop.installLauncherUpdate().catch((reason) => {
+                setInstallingUpdate(false);
+                setUpdateError(reason instanceof Error ? reason.message : String(reason));
+              });
+            }}
+            className="flex-shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded bg-indigo-500 text-white hover:bg-indigo-400 disabled:opacity-60"
+          >
+            {installingUpdate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+            Обновить
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden relative z-0">
         {/* Sidebar */}
@@ -110,7 +151,14 @@ export function Dashboard() {
           </div>
 
           {/* Sidebar Footer */}
-          <div className="mt-auto p-4 border-t border-white/5">
+          <div className="mt-auto p-4 border-t border-white/5 space-y-1">
+            <button
+              onClick={() => setIsLogsOpen(true)}
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/5 rounded transition-all"
+            >
+              <span>Журнал</span>
+              <TerminalSquare className="w-3.5 h-3.5" />
+            </button>
             <button 
               onClick={() => setIsSettingsOpen(true)}
               className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/5 rounded transition-all"
@@ -154,6 +202,20 @@ export function Dashboard() {
                   </div>
                   
                   <div className="space-y-4">
+                    {loadError && (
+                      <div className="p-4 rounded-lg border border-amber-500/20 bg-amber-500/5 text-amber-200">
+                        <div className="flex items-start gap-3">
+                          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold">Не удалось обновить данные</p>
+                            <p className="text-[11px] text-zinc-500 mt-1 break-words">{loadError}</p>
+                          </div>
+                          <button onClick={() => setReloadToken((value) => value + 1)} className="p-2 rounded hover:bg-white/5" title="Повторить">
+                            <RefreshCw className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {notices.map(notice => (
                       <div 
                         key={notice.id} 
@@ -194,6 +256,9 @@ export function Dashboard() {
       <AnimatePresence>
         {isSettingsOpen && (
            <SettingsModal onClose={() => setIsSettingsOpen(false)} />
+        )}
+        {isLogsOpen && (
+          <LogsModal onClose={() => setIsLogsOpen(false)} />
         )}
       </AnimatePresence>
     </div>

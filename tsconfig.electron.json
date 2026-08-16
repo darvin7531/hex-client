@@ -1,13 +1,21 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "ES2024",
     "module": "Node16",
     "moduleResolution": "Node16",
     "strict": true,
     "skipLibCheck": true,
     "outDir": "dist-electron",
     "rootDir": "electron",
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2024"
+    ],
+    "noUncheckedSideEffectImports": true
   },
-  "include": ["electron/**/*"]
+  "include": [
+    "electron/**/*"
+  ]
 }

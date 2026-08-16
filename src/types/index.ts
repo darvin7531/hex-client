@@ -2,6 +2,8 @@ export interface LauncherVersion {
   currentVersion: string;
   minimumSupportedBackend: string;
   maintenanceMode: boolean;
+  backendApiVersion: string;
+  capabilities: string[];
 }
 
 export interface LauncherUpdate {
@@ -15,6 +17,14 @@ export interface LauncherUpdate {
   publishedAt: string;
 }
 
+export interface LauncherUpdateStatus {
+  currentVersion: string;
+  serverVersion: string;
+  outdated: boolean;
+  available: boolean;
+  remote: LauncherUpdate | null;
+}
+
 export interface Notice {
   id: string;
   title: string;
@@ -26,7 +36,7 @@ export interface PackSummary {
   packId: string;
   packName: string;
   description: string;
-  releaseChannel: 'stable' | 'beta';
+  releaseChannel: 'stable' | 'beta' | 'test';
   latestVersion: string;
   minecraftVersion: string;
   loaderType: 'Fabric' | 'Forge' | 'NeoForge';
@@ -36,16 +46,23 @@ export interface PackSummary {
   heroSubtitle: string;
 }
 
+export interface PackVersionSummary {
+  packId: string;
+  packVersion: string;
+  releaseChannel: 'stable' | 'beta' | 'test';
+  archived: boolean;
+  publishedAt: string;
+}
+
 export interface FileArtifact {
   path: string;
   size: number;
   sha256: string;
   sourceUrl: string;
-  kind: 'mod' | 'config' | 'resourcepack' | 'shaderpack' | 'loader' | 'other';
+  kind: 'mod' | 'config' | 'resourcepack' | 'shaderpack' | 'loader' | 'data' | 'other' | string;
   updatePolicy: 'required_replace' | 'required_keep_if_same' | 'optional';
   required: boolean;
   preserveUserChanges: boolean;
-  executable: boolean;
 }
 
 export interface ReleaseManifest {
@@ -53,13 +70,13 @@ export interface ReleaseManifest {
   packName: string;
   packVersion: string;
   archived: boolean;
-  releaseChannel: string;
+  releaseChannel: 'stable' | 'beta' | 'test';
   minecraftVersion: string;
-  loaderType: string;
+  loaderType: 'Fabric' | 'Forge' | 'NeoForge';
   loaderVersion: string;
   javaRequirements: {
     majorVersion: number;
-    vendor: string;
+    vendor?: string;
     arch: string;
     os: string;
     runtimePackageId: string;
@@ -71,15 +88,28 @@ export interface ReleaseManifest {
     serverPort: number;
     autoConnect: boolean;
     allowUserOverride: boolean;
+    motd: string;
   };
   files: FileArtifact[];
   changelog: string[];
+  publishedAt: string;
   manifestHash: string;
+  signature: string;
   stateMachine: string[];
   diagnostics: string[];
 }
 
-export type PackState = 'not_installed' | 'installing' | 'updating' | 'update_available' | 'repair_required' | 'ready_to_launch' | 'launching' | 'running' | 'launch_failed';
+export type PackState =
+  | 'not_installed'
+  | 'installing'
+  | 'updating'
+  | 'update_available'
+  | 'repair_required'
+  | 'ready_to_launch'
+  | 'launching'
+  | 'running'
+  | 'launch_failed'
+  | 'backend_unavailable';
 
 export interface SyncProgress {
   status: string;
@@ -97,28 +127,38 @@ export interface GameState {
   diagnostics?: string[];
 }
 
-export interface ElectronAPI {
-  getSystemInfo: () => Promise<{ totalMemory: number; platform: string }>;
-  selectDirectory: () => Promise<string | null>;
-  checkLocalPackState: (packId: string, version: string) => Promise<PackState>;
-  verifyAndInstallPack: (manifest: ReleaseManifest, userOptions: { ramAllocation: number }) => void;
-  repairPack: (manifest: ReleaseManifest) => void;
-  launchGame: (manifest: ReleaseManifest, userOptions: { ramAllocation: number, customJavaPath?: string, jvmArgs?: string }) => void;
-  onSyncProgress: (callback: (event: any, progress: SyncProgress) => void) => () => void;
-  onGameStateChanged: (callback: (event: any, state: GameState) => void) => () => void;
+
+export interface LauncherLogEntry {
+  id: string;
+  timestamp: string;
+  level: 'info' | 'warn' | 'error';
+  scope: string;
+  message: string;
 }
 
-declare global {
-  interface Window {
-    electronAPI: ElectronAPI;
-  }
-}
+export interface GameLogEntry { id: string; timestamp: string; stream: 'stdout' | 'stderr'; message: string; }
+export type GameProcessState = { status: 'idle' } | { status: 'launching'; packId: string } | { status: 'running'; packId: string; pid: number } | { status: 'exited'; packId: string; exitCode: number | null; signal?: string } | { status: 'error'; packId: string; message: string };
 
 export interface LauncherSettings {
-  ramAllocation: number;
-  customJavaPath: string;
-  jvmArgs: string;
-  optionalMods: Record<string, boolean>;
-  customApiUrl?: string;
-  nickname?: string;
+  nickname: string;
+  nicknameHistory: string[];
+  memoryMb: number;
+  resolution: string;
+  fullscreen: boolean;
+  customApiUrl: string;
+  optionalFilesByPack: Record<string, string[]>;
+  selectedVersionsByPack: Record<string, string>;
+  serverOverridesByPack: Record<string, { address: string; port: number }>;
+  canOverrideApi: boolean;
+}
+
+export interface VerifyResult {
+  status: 'ok' | 'not_installed' | 'update_available' | 'repair_required' | 'backend_unavailable';
+  missingFiles: number;
+  corruptedFiles: number;
+  newFiles: number;
+  totalFiles: number;
+  serverVersion: string;
+  localVersion?: string;
+  corruptedPaths?: string[];
 }

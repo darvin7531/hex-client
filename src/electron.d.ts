@@ -1,3 +1,5 @@
+import type { GameLogEntry, GameProcessState, LauncherLogEntry, LauncherSettings, LauncherUpdateStatus, Notice, PackSummary, PackVersionSummary, ReleaseManifest, SyncProgress, VerifyResult } from './types';
+
 declare global {
   interface Window {
     hexloaderDesktop?: {
@@ -8,63 +10,18 @@ declare global {
           currentVersion: string;
           minimumSupportedBackend: string;
           maintenanceMode: boolean;
+          backendApiVersion: string;
+          capabilities: string[];
         };
-        packs: Array<{
-          packId: string;
-          packName: string;
-          description: string;
-          releaseChannel: string;
-          latestVersion: string;
-          minecraftVersion: string;
-          loaderType: "Fabric" | "Forge" | "NeoForge";
-          loaderVersion: string;
-          javaVersion: number;
-          heroTitle: string;
-          heroSubtitle: string;
-        }>;
-        notices: Array<{
-          id: string;
-          title: string;
-          body: string;
-          tone: "info" | "warning" | "success";
-        }>;
+        packs: PackSummary[];
+        notices: Notice[];
+        offline?: boolean;
       }>;
-      getSettings: () => Promise<{
-        nickname: string;
-        memoryMb: number;
-        resolution: string;
-        fullscreen: boolean;
-        showArchivedBuilds: boolean;
-      }>;
-      updateSettings: (payload: {
-        nickname?: string;
-        memoryMb?: number;
-        resolution?: string;
-        fullscreen?: boolean;
-        showArchivedBuilds?: boolean;
-      }) => Promise<{
-        nickname: string;
-        memoryMb: number;
-        resolution: string;
-        fullscreen: boolean;
-        showArchivedBuilds: boolean;
-      }>;
-      getLauncherUpdateStatus: () => Promise<{
-        currentVersion: string;
-        serverVersion: string;
-        outdated: boolean;
-        available: boolean;
-        remote: null | {
-          version: string;
-          notes: string;
-          fileName: string;
-          installerUrl: string;
-          sha256: string;
-          silentArgs: string[];
-          mandatory: boolean;
-          publishedAt: string;
-        };
-      }>;
+      getManifest: (payload: { packId: string; packVersion?: string; releaseChannel?: "stable" | "beta" | "test" }) => Promise<ReleaseManifest>;
+      getVersions: (payload: { packId: string; includeArchived?: boolean }) => Promise<PackVersionSummary[]>;
+      getSettings: () => Promise<LauncherSettings>;
+      updateSettings: (payload: Partial<Omit<LauncherSettings, 'canOverrideApi'>>) => Promise<LauncherSettings>;
+      getLauncherUpdateStatus: () => Promise<LauncherUpdateStatus>;
       installLauncherUpdate: () => Promise<{
         currentVersion: string;
         targetVersion: string;
@@ -73,9 +30,11 @@ declare global {
       syncPack: (payload: {
         packId: string;
         packVersion?: string;
+        releaseChannel?: 'stable' | 'beta' | 'test';
         repair?: boolean;
+        optionalFiles?: string[];
       }) => Promise<{
-        release: unknown;
+        release: ReleaseManifest;
         javaPath: string;
         instanceDir: string;
         versionId: string;
@@ -85,12 +44,14 @@ declare global {
       launchPack: (payload: {
         packId: string;
         packVersion?: string;
+        releaseChannel?: 'stable' | 'beta' | 'test';
         nickname: string;
         memoryMb: number;
         resolution: string;
         fullscreen: boolean;
+        optionalFiles?: string[];
       }) => Promise<{
-        release: unknown;
+        release: ReleaseManifest;
         javaPath: string;
         instanceDir: string;
         versionId: string;
@@ -100,7 +61,7 @@ declare global {
         logFile: string;
         commandPreview: string;
       }>;
-      getLauncherDiagnostics: (payload: { packId: string; packVersion?: string }) => Promise<{
+      getLauncherDiagnostics: (payload: { packId: string; packVersion?: string; releaseChannel?: "stable" | "beta" | "test" }) => Promise<{
         packId: string;
         instanceDir: string;
         instanceInstalled: boolean;
@@ -113,44 +74,19 @@ declare global {
           runtimesRoot: string;
         };
       }>;
-      deleteLocalPack: (payload: { packId: string }) => Promise<{
-        packId: string;
-        instanceDir: string;
-        deleted: boolean;
-      }>;
-      verifyPackFiles: (payload: { packId: string; packVersion?: string }) => Promise<{
-        status: 'ok' | 'not_installed' | 'update_available' | 'repair_required';
-        missingFiles: number;
-        corruptedFiles: number;
-        newFiles: number;
-        totalFiles: number;
-        serverVersion: string;
-        localVersion?: string;
-        corruptedPaths?: string[];
-      }>;
-      getLauncherLogs: () => Promise<Array<{
-        id: string;
-        timestamp: string;
-        level: "info" | "warn" | "error";
-        scope: string;
-        message: string;
-      }>>;
-      onLauncherLog: (callback: (entry: {
-        id: string;
-        timestamp: string;
-        level: "info" | "warn" | "error";
-        scope: string;
-        message: string;
-      }) => void) => () => void;
-      openPath: (payload: { path: string }) => Promise<string>;
-      openOrRevealPath: (payload: { path: string }) => Promise<string>;
-      getSystemMemory: () => Promise<{
-        totalMemoryMb: number;
-        recommendedMaxMemoryMb: number;
-      }>;
-      minimizeWindow: () => Promise<void>;
+      deleteLocalPack: (payload: { packId: string }) => Promise<{ packId: string; instanceDir: string; deleted: boolean }>;
+      verifyPackFiles: (payload: { packId: string; packVersion?: string; releaseChannel?: "stable" | "beta" | "test" }) => Promise<VerifyResult>;
+      getLauncherLogs: () => Promise<LauncherLogEntry[]>;
+      onLauncherLog: (callback: (entry: LauncherLogEntry) => void) => () => void;
+      getGameLogs: () => Promise<GameLogEntry[]>;
+      getGameState: () => Promise<GameProcessState>;
+      onGameLog: (callback: (entry: GameLogEntry) => void) => () => void;
+      onGameState: (callback: (state: GameProcessState) => void) => () => void;
+      onSyncProgress: (callback: (progress: SyncProgress) => void) => () => void;
+      getSystemMemory: () => Promise<{ totalMemoryMb: number; recommendedMaxMemoryMb: number }>;
+      minimizeWindow: () => void;
       toggleMaximizeWindow: () => Promise<boolean>;
-      closeWindow: () => Promise<void>;
+      closeWindow: () => void;
       isWindowMaximized: () => Promise<boolean>;
     };
   }
