@@ -24,15 +24,15 @@
     "check:backend": "node scripts/check-backend-contract.mjs"
   },
   "dependencies": {
-    "@tailwindcss/vite": "4.3.3",
+    "@tailwindcss/vite": "4.3.4",
     "adm-zip": "0.6.0",
     "clsx": "2.1.1",
     "lucide-react": "1.27.0",
     "motion": "12.43.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "tailwind-merge": "3.6.0",
-    "tailwindcss": "4.3.3"
+    "tailwind-merge": "3.7.0",
+    "tailwindcss": "4.3.4"
   },
   "devDependencies": {
     "@types/node": "24.13.3",
